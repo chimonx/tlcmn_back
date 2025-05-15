@@ -5,7 +5,7 @@ const app = express();
 
 app.use(bodyParser.json());
 
-// เพิ่ม middleware สำหรับจัดการ CORS
+// CORS middleware
 app.use((req, res, next) => {
   const allowedOrigin = 'https://peppy-tartufo-42fc69.netlify.app';
   const origin = req.headers.origin;
@@ -16,7 +16,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
 
-  // สำหรับ preflight request (OPTIONS)
+  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -24,28 +24,36 @@ app.use((req, res, next) => {
   next();
 });
 
+// Route for health check
+app.get('/', (req, res) => {
+  res.json({ message: "Server is running" });
+});
+
+// Google Apps Script URL
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA75rchBrF8YSyc9bQVaqoya7kCBVqV6iXxjLlvbOXnGoBXJLdEbddcwXOc5U-2A/exec";
 
 app.post('/submit', async (req, res) => {
-  try {
-    const data = req.body;
+  console.log('Received data:', req.body);
 
+  try {
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(req.body)
     });
 
     const result = await response.json();
 
+    console.log('Apps Script response:', result);
+
     if (response.ok && result.result === 'success') {
-      res.status(200).json({ result: 'success' });
+      return res.status(200).json({ result: 'success' });
     } else {
-      res.status(500).json({ result: 'error', message: 'Google Apps Script error or invalid response' });
+      return res.status(500).json({ result: 'error', message: 'Google Apps Script error or invalid response' });
     }
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ result: 'error', message: error.toString() });
+    console.error('Error in /submit:', error);
+    return res.status(500).json({ result: 'error', message: error.toString() });
   }
 });
 
