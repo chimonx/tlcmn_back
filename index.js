@@ -5,7 +5,7 @@ const app = express();
 
 app.use(bodyParser.json());
 
-// CORS middleware
+// ===== CORS Middleware =====
 app.use((req, res, next) => {
   const allowedOrigin = 'https://venerable-concha-0f56d5.netlify.app';
   const origin = req.headers.origin;
@@ -16,7 +16,6 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
 
-  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -24,14 +23,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Route for health check
+// ===== Health Check Route =====
 app.get('/', (req, res) => {
   res.json({ message: "Server is running" });
 });
 
-// Google Apps Script URL
+// ===== Google Apps Script URL =====
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec";
 
+// ===== Channel Access Token from LINE =====
+const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU='; // <- Replace this with your real token
+
+// ===== Route from Frontend to Submit Data =====
 app.post('/submit', async (req, res) => {
   console.log('Received data:', req.body);
 
@@ -43,7 +46,6 @@ app.post('/submit', async (req, res) => {
     });
 
     const result = await response.json();
-
     console.log('Apps Script response:', result);
 
     if (response.ok && result.result === 'success') {
@@ -57,6 +59,104 @@ app.post('/submit', async (req, res) => {
   }
 });
 
+// ===== LINE Webhook Endpoint =====
+app.post('/line-webhook', async (req, res) => {
+  const events = req.body.events;
+
+  if (!events || events.length === 0) {
+    return res.status(200).send('No event');
+  }
+
+  for (const event of events) {
+    if (event.type === 'message' && event.message.type === 'text') {
+      const userMessage = event.message.text;
+      const replyToken = event.replyToken;
+      const userId = event.source.userId;
+
+      // === Step 1: Prepare Data to Save to Google Sheet ===
+      const requestData = {
+        userId: userId,
+        message: userMessage,
+        status: "รอซ่อม",
+        timestamp: new Date().toISOString()
+      };
+
+      // === Step 2: Send to Google Apps Script ===
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData)
+        });
+
+        const result = await response.json();
+        console.log('Saved to Google Sheet:', result);
+
+        // === Step 3: Prepare Flex Message ===
+        const flexMessage = {
+          type: "flex",
+          altText: "คุณได้แจ้งซ่อมเรียบร้อยแล้ว",
+          contents: {
+            type: "bubble",
+            hero: {
+              type: "image",
+              url: "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png",
+              size: "full",
+              aspectRatio: "20:13",
+              aspectMode: "cover"
+            },
+            body: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: "แจ้งซ่อมสำเร็จ",
+                  weight: "bold",
+                  size: "xl"
+                },
+                {
+                  type: "text",
+                  text: `อุปกรณ์: ${userMessage}`,
+                  size: "sm",
+                  color: "#666666",
+                  margin: "md"
+                },
+                {
+                  type: "text",
+                  text: `สถานะ: รอซ่อม`,
+                  size: "sm",
+                  color: "#AAAAAA",
+                  margin: "sm"
+                }
+              ]
+            }
+          }
+        };
+
+        // === Step 4: Reply Flex Message ===
+        await fetch('https://api.line.me/v2/bot/message/reply', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
+          },
+          body: JSON.stringify({
+            replyToken: replyToken,
+            messages: [flexMessage]
+          })
+        });
+
+      } catch (error) {
+        console.error("Error handling LINE webhook:", error);
+      }
+    }
+  }
+
+  res.status(200).send('OK');
+});
+
+// ===== Start Server =====
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Backend server listening on port ${PORT}`);
