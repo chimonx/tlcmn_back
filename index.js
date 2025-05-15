@@ -5,7 +5,7 @@ const app = express();
 
 app.use(bodyParser.json());
 
-// ===== CORS Middleware =====
+// ===== CORS Middleware (for frontend) =====
 app.use((req, res, next) => {
   const allowedOrigin = 'https://venerable-concha-0f56d5.netlify.app';
   const origin = req.headers.origin;
@@ -23,18 +23,41 @@ app.use((req, res, next) => {
   next();
 });
 
-// ===== Health Check Route =====
+// ===== Health Check =====
 app.get('/', (req, res) => {
   res.json({ message: "Server is running" });
 });
 
-// ===== Google Apps Script URL =====
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec";
+// ===== Configuration =====
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec"; // <== Replace with your real Google Apps Script URL
+const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU='; // <== Replace with your real token
 
-// ===== LINE Access Token =====
-const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU='; // <-- เปลี่ยนเป็น Token จริงของคุณ
+// ===== /submit Route for Frontend =====
+app.post('/submit', async (req, res) => {
+  console.log('Received data from frontend:', req.body);
 
-// ===== LINE Webhook Endpoint =====
+  try {
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+
+    const result = await response.json();
+    console.log('Apps Script response:', result);
+
+    if (response.ok && result.result === 'success') {
+      return res.status(200).json({ result: 'success' });
+    } else {
+      return res.status(500).json({ result: 'error', message: 'Google Apps Script error or invalid response' });
+    }
+  } catch (error) {
+    console.error('Error in /submit:', error);
+    return res.status(500).json({ result: 'error', message: error.toString() });
+  }
+});
+
+// ===== /line-webhook from LINE Platform =====
 app.post('/line-webhook', async (req, res) => {
   const events = req.body.events;
 
@@ -48,7 +71,6 @@ app.post('/line-webhook', async (req, res) => {
       const replyToken = event.replyToken;
       const userId = event.source.userId;
 
-      // === Step 1: Prepare Data to Save to Google Sheet ===
       const requestData = {
         userId: userId,
         message: userMessage,
@@ -57,7 +79,7 @@ app.post('/line-webhook', async (req, res) => {
       };
 
       try {
-        // === Step 2: Save to Google Sheets ===
+        // === Step 1: Save to Google Sheet first ===
         const response = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -65,10 +87,10 @@ app.post('/line-webhook', async (req, res) => {
         });
 
         const result = await response.json();
-        console.log('Saved to Google Sheets:', result);
+        console.log('Saved to Google Sheet:', result);
 
-        // === Step 3: Reply Flex Message Only If Save Successful ===
-        if (result.result === 'success') {
+        if (response.ok && result.result === 'success') {
+          // === Step 2: Send Flex Message after successful save ===
           const flexMessage = {
             type: "flex",
             altText: "คุณได้แจ้งซ่อมเรียบร้อยแล้ว",
@@ -110,7 +132,6 @@ app.post('/line-webhook', async (req, res) => {
             }
           };
 
-          // === Step 4: Send Flex Message to LINE ===
           await fetch('https://api.line.me/v2/bot/message/reply', {
             method: 'POST',
             headers: {
@@ -122,15 +143,15 @@ app.post('/line-webhook', async (req, res) => {
               messages: [flexMessage]
             })
           });
+        } else {
+          console.error('Failed to save to Google Sheet');
         }
-
       } catch (error) {
-        console.error("Error saving to Sheets or replying to LINE:", error);
+        console.error("Error handling LINE webhook:", error);
       }
     }
   }
 
-  // Always reply 200 to LINE
   res.status(200).send('OK');
 });
 
