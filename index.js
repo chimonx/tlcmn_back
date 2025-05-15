@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
 });
 
 // Google Apps Script URL
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA75rchBrF8YSyc9bQVaqoya7kCBVqV6iXxjLlvbOXnGoBXJLdEbddcwXOc5U-2A/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec";
 
 app.post('/submit', async (req, res) => {
   console.log('Received data:', req.body);
