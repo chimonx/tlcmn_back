@@ -29,8 +29,8 @@ app.get('/', (req, res) => {
 });
 
 // ===== Configuration =====
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec"; // <== Replace with your real Google Apps Script URL
-const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU='; // <== Replace with your real token
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec";
+const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU=';
 
 // ===== /submit Route for Frontend =====
 app.post('/submit', async (req, res) => {
@@ -68,7 +68,6 @@ app.post('/line-webhook', async (req, res) => {
   for (const event of events) {
     if (event.type === 'message' && event.message.type === 'text') {
       const userMessage = event.message.text;
-      const replyToken = event.replyToken;
       const userId = event.source.userId;
 
       const requestData = {
@@ -90,7 +89,7 @@ app.post('/line-webhook', async (req, res) => {
         console.log('Saved to Google Sheet:', result);
 
         if (response.ok && result.result === 'success') {
-          // === Step 2: Send Flex Message after successful save ===
+          // === Step 2: Send Flex Message via Push ===
           const flexMessage = {
             type: "flex",
             altText: "คุณได้แจ้งซ่อมเรียบร้อยแล้ว",
@@ -132,14 +131,14 @@ app.post('/line-webhook', async (req, res) => {
             }
           };
 
-          await fetch('https://api.line.me/v2/bot/message/reply', {
+          await fetch('https://api.line.me/v2/bot/message/push', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
             },
             body: JSON.stringify({
-              replyToken: replyToken,
+              to: userId,
               messages: [flexMessage]
             })
           });
