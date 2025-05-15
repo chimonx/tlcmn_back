@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec";
 
 // ===== LINE Access Token =====
-const LINE_ACCESS_TOKEN = 'YOUR_LINE_ACCESS_TOKEN'; // <-- เปลี่ยนเป็น Token จริงของคุณ
+const LINE_ACCESS_TOKEN = 'ISywuMtcI1v0jSuRd9fWAWCXHkTxR7gkC2+oJwlwOhnlHaPlmQnQdSbUHcjSfs/tWnJTPGx/YVafbSgsu1jAblC1+IOR3sliuoFJ6bo0MDLD3kJalyHRoq5A+Q3qpOEwgL9YAmckowC4EZK8JW7zzQdB04t89/1O/w1cDnyilFU='; // <-- เปลี่ยนเป็น Token จริงของคุณ
 
 // ===== LINE Webhook Endpoint =====
 app.post('/line-webhook', async (req, res) => {
