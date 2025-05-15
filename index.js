@@ -7,7 +7,7 @@ app.use(bodyParser.json());
 
 // CORS middleware
 app.use((req, res, next) => {
-  const allowedOrigin = 'https://peppy-tartufo-42fc69.netlify.app';
+  const allowedOrigin = 'https://venerable-concha-0f56d5.netlify.app';
   const origin = req.headers.origin;
 
   if (origin === allowedOrigin) {
