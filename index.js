@@ -1,18 +1,35 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch'); // ถ้า Node <18 ต้องติดตั้ง: npm i node-fetch@2
+const fetch = require('node-fetch');
 const app = express();
 
 app.use(bodyParser.json());
+
+// เพิ่ม middleware สำหรับจัดการ CORS
+app.use((req, res, next) => {
+  const allowedOrigin = 'https://peppy-tartufo-42fc69.netlify.app';
+  const origin = req.headers.origin;
+
+  if (origin === allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+
+  // สำหรับ preflight request (OPTIONS)
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyA75rchBrF8YSyc9bQVaqoya7kCBVqV6iXxjLlvbOXnGoBXJLdEbddcwXOc5U-2A/exec";
 
 app.post('/submit', async (req, res) => {
   try {
-    // รับข้อมูลจาก LIFF frontend
     const data = req.body;
 
-    // ส่งข้อมูลต่อไปยัง Google Apps Script Web App
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
