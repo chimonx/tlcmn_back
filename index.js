@@ -25,67 +25,116 @@ app.get('/', (req, res) => res.json({ message: 'Server is running' }));
 
 // Configuration
 const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec';
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-
-if (!LINE_ACCESS_TOKEN || !APPS_SCRIPT_URL) {
-  console.error('Error: Missing environment variables');
+if (!LINE_ACCESS_TOKEN) {
+  console.error('Error: Missing LINE_ACCESS_TOKEN');
   process.exit(1);
 }
 
 // === /submit Route ===
 app.post('/submit', async (req, res) => {
-  const data = req.body;
-  console.log('[/submit] payload:', data);
+  console.log('[/submit] payload:', req.body);
+  const { userId, displayName, building, floor, department, problem } = req.body;
+
+  if (!userId || !problem) {
+    return res.status(400).json({ error: 'Missing userId or problem' });
+  }
+
+  const sheetData = {
+    userId,
+    displayName,
+    building,
+    floor,
+    department,
+    problem,
+    status: 'รอซ่อม',
+    timestamp: new Date().toISOString()
+  };
 
   try {
-    // Step 1: Save to Google Sheet via Apps Script
-    const saveResponse = await fetch(APPS_SCRIPT_URL, {
+    const sheetRes = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(sheetData)
     });
 
-    const saveResult = await saveResponse.json();
-    console.log('[/submit] Apps Script response:', saveResponse.status, saveResult);
+    const sheetResult = await sheetRes.json();
+    console.log('[/submit] Apps Script response:', sheetRes.status, sheetResult);
 
-    if (!saveResponse.ok || saveResult.result !== 'success') {
-      return res.status(500).json({ error: 'Failed to save data' });
-    }
-
-    // Step 2: Send LINE push message
-    const payload = {
-      to: data.userId,
-      messages: [
-        {
-          type: 'text',
-          text: 'แจ้งซ่อมสำเร็จ\nอุปกรณ์: ' + data.problem + '\nสถานะ: รอซ่อม'
+    if (sheetRes.ok && sheetResult.result === 'success') {
+      const flexMessage = {
+        type: 'flex',
+        altText: 'แจ้งซ่อมสำเร็จ',
+        contents: {
+          type: 'bubble',
+          hero: {
+            type: 'image',
+            url: 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png',
+            size: 'full',
+            aspectRatio: '20:13',
+            aspectMode: 'cover'
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: 'แจ้งซ่อมสำเร็จ',
+                weight: 'bold',
+                size: 'xl'
+              },
+              {
+                type: 'text',
+                text: `ปัญหา: ${problem}`,
+                size: 'sm',
+                color: '#666666',
+                margin: 'md'
+              },
+              {
+                type: 'text',
+                text: 'สถานะ: รอซ่อม',
+                size: 'sm',
+                color: '#AAAAAA',
+                margin: 'sm'
+              }
+            ]
+          }
         }
-      ]
-    };
+      };
 
-    console.log('[/submit] Sending push payload:', JSON.stringify(payload));
+      const pushPayload = {
+        to: userId,
+        messages: [
+          { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
+          flexMessage
+        ]
+      };
 
-    const pushResponse = await fetch(LINE_PUSH_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
-      },
-      body: JSON.stringify(payload)
-    });
+      const pushRes = await fetch(LINE_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
+        },
+        body: JSON.stringify(pushPayload)
+      });
 
-    const pushResult = await pushResponse.json();
-    console.log('[/submit] LINE API response:', pushResponse.status, pushResult);
+      const pushResult = await pushRes.json();
+      console.log('[/submit] LINE push response:', pushRes.status, pushResult);
 
-    if (!pushResponse.ok) {
-      return res.status(pushResponse.status).json({ error: 'LINE push failed', pushResult });
+      if (pushRes.ok) {
+        return res.status(200).json({ message: 'Data saved and push sent successfully' });
+      } else {
+        return res.status(pushRes.status).json({ error: 'Push failed', pushResult });
+      }
+    } else {
+      return res.status(500).json({ error: 'Failed to save to Google Sheet', sheetResult });
     }
-
-    res.status(200).json({ message: 'Data saved and LINE push sent', saveResult, pushResult });
   } catch (err) {
-    console.error('[/submit] Error:', err);
-    res.status(500).json({ error: 'Internal Server Error', message: err.message });
+    console.error('[/submit] error:', err);
+    return res.status(500).json({ error: 'Internal Server Error', message: err.message });
   }
 });
 
