@@ -2,15 +2,8 @@ const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
 
-// Middleware: parse raw body for LINE, JSON for others
-app.use('/line-webhook', express.raw({ type: 'application/json' }));
-app.use((req, res, next) => {
-  if (req.path !== '/line-webhook') {
-    express.json()(req, res, next);
-  } else {
-    next();
-  }
-});
+// Middleware: parse JSON
+app.use(express.json());
 
 // CORS Middleware for frontend
 app.use((req, res, next) => {
@@ -31,102 +24,69 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => res.json({ message: 'Server is running' }));
 
 // Configuration
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec';
 const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
-if (!LINE_ACCESS_TOKEN) {
-  console.error('Error: Missing LINE_ACCESS_TOKEN');
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
+
+if (!LINE_ACCESS_TOKEN || !APPS_SCRIPT_URL) {
+  console.error('Error: Missing environment variables');
   process.exit(1);
 }
 
-// === /submit Route for Frontend ===
+// === /submit Route ===
 app.post('/submit', async (req, res) => {
-  console.log('[/submit] payload:', req.body);
+  const data = req.body;
+  console.log('[/submit] payload:', data);
+
   try {
-    const resp = await fetch(APPS_SCRIPT_URL, {
+    // Step 1: Save to Google Sheet via Apps Script
+    const saveResponse = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(data)
     });
-    const json = await resp.json();
-    console.log('[/submit] Apps Script response:', resp.status, json);
-    if (resp.ok && json.result === 'success') {
-      return res.status(200).json(json);
-    }
-    console.error('[/submit] Apps Script failure:', json);
-    return res.status(500).json({ error: 'Apps Script failure', details: json });
-  } catch (e) {
-    console.error('[/submit] error:', e);
-    return res.status(500).json({ error: 'Internal Server Error', message: e.message });
-  }
-});
 
-// === /line-webhook Route ===
-app.post('/line-webhook', (req, res) => {
-  // Log incoming webhook info
-  console.log('[LINE] Headers:', JSON.stringify(req.headers));
-  console.log('[LINE] Raw body buffer length:', req.body.length);
-  const raw = req.body.toString('utf8');
-  console.log('[LINE] Raw body string:', raw);
-  let body;
-  try {
-    body = JSON.parse(raw);
-    console.log('[LINE] Parsed body:', JSON.stringify(body));
+    const saveResult = await saveResponse.json();
+    console.log('[/submit] Apps Script response:', saveResponse.status, saveResult);
+
+    if (!saveResponse.ok || saveResult.result !== 'success') {
+      return res.status(500).json({ error: 'Failed to save data' });
+    }
+
+    // Step 2: Send LINE push message
+    const payload = {
+      to: data.userId,
+      messages: [
+        {
+          type: 'text',
+          text: 'แจ้งซ่อมสำเร็จ\nอุปกรณ์: ' + data.problem + '\nสถานะ: รอซ่อม'
+        }
+      ]
+    };
+
+    console.log('[/submit] Sending push payload:', JSON.stringify(payload));
+
+    const pushResponse = await fetch(LINE_PUSH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const pushResult = await pushResponse.json();
+    console.log('[/submit] LINE API response:', pushResponse.status, pushResult);
+
+    if (!pushResponse.ok) {
+      return res.status(pushResponse.status).json({ error: 'LINE push failed', pushResult });
+    }
+
+    res.status(200).json({ message: 'Data saved and LINE push sent', saveResult, pushResult });
   } catch (err) {
-    console.error('[LINE] JSON parse error:', err);
-    return res.sendStatus(400);
+    console.error('[/submit] Error:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
   }
-
-  // Acknowledge webhook immediately
-  res.sendStatus(200);
-
-  const events = Array.isArray(body.events) ? body.events : [];
-  console.log(`[LINE] Events count: ${events.length}`);
-
-  events.forEach(async event => {
-    console.log('[LINE] Event:', JSON.stringify(event));
-    if (event.type === 'message' && event.message.type === 'text') {
-      const userId = event.source.userId;
-      const userMsg = event.message.text;
-
-      // Push message payload
-      const payload = {
-        to: userId,
-        messages: [
-          { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
-          { type: 'text', text: `อุปกรณ์: ${userMsg}\nสถานะ: รอซ่อม` }
-        ]
-      };
-      console.log('[LINE] Push payload:', JSON.stringify(payload));
-
-      try {
-        const response = await fetch(LINE_PUSH_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
-          },
-          body: JSON.stringify(payload)
-        });
-        const result = await response.json();
-        console.log('[LINE] Push API response:', response.status, JSON.stringify(result));
-      } catch (err) {
-        console.error('[LINE] Push API error:', err);
-      }
-
-      // Save to sheet
-      try {
-        const sheetResp = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, message: userMsg, status: 'รอซ่อม', timestamp: new Date().toISOString() })
-        });
-        console.log('[Sheet] Save status:', sheetResp.status);
-      } catch (err) {
-        console.error('[Sheet] save error:', err);
-      }
-    }
-  });
 });
 
 // Start server
