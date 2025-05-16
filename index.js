@@ -53,6 +53,7 @@ app.post('/submit', async (req, res) => {
   };
 
   try {
+    // ส่งข้อมูลไป Google Apps Script เพื่อบันทึกลง Sheet
     const sheetRes = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -63,6 +64,7 @@ app.post('/submit', async (req, res) => {
     console.log('[/submit] Apps Script response:', sheetRes.status, sheetResult);
 
     if (sheetRes.ok && sheetResult.result === 'success') {
+      // เตรียม Flex Message ส่งกลับ
       const flexMessage = {
         type: 'flex',
         altText: 'แจ้งซ่อมสำเร็จ',
@@ -70,7 +72,7 @@ app.post('/submit', async (req, res) => {
           type: 'bubble',
           hero: {
             type: 'image',
-            url: 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png',
+            url: 'https://img5.pic.in.th/file/secure-sv1/480286578_1688105901825754_783775536245793454_n.jpg',
             size: 'full',
             aspectRatio: '20:13',
             aspectMode: 'cover'
@@ -79,25 +81,59 @@ app.post('/submit', async (req, res) => {
             type: 'box',
             layout: 'vertical',
             contents: [
+              { type: 'text', text: 'แจ้งซ่อมสำเร็จ', weight: 'bold', size: 'xl' },
               {
-                type: 'text',
-                text: 'แจ้งซ่อมสำเร็จ',
-                weight: 'bold',
-                size: 'xl'
-              },
-              {
-                type: 'text',
-                text: `ปัญหา: ${problem}`,
-                size: 'sm',
-                color: '#666666',
-                margin: 'md'
-              },
-              {
-                type: 'text',
-                text: 'สถานะ: รอซ่อม',
-                size: 'sm',
-                color: '#AAAAAA',
-                margin: 'sm'
+                type: 'box',
+                layout: 'vertical',
+                margin: 'md',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
+                      { type: 'text', text: 'ปัญหา', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: problem, wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
+                      { type: 'text', text: 'ตึก', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: building || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
+                      { type: 'text', text: 'ชั้น', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: floor || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
+                      { type: 'text', text: 'ผู้แจ้ง', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: displayName || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
+                      { type: 'text', text: 'สถานะ', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: 'รอซ่อม', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  }
+                ]
               }
             ]
           }
@@ -112,6 +148,7 @@ app.post('/submit', async (req, res) => {
         ]
       };
 
+      // ส่ง push message กลับไปที่ userId
       const pushRes = await fetch(LINE_PUSH_URL, {
         method: 'POST',
         headers: {
