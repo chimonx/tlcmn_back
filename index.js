@@ -1,9 +1,9 @@
 const express = require('express');
 const fetch = require('node-fetch');
-const { middleware: lineMiddleware, Client: LineClient } = require('@line/bot-sdk');
+const { middleware: lineMiddleware } = require('@line/bot-sdk');
 const app = express();
 
-// LINE requires raw body for signature verification
+// LINE raw body parser for signature verification
 app.use('/line-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
@@ -22,15 +22,12 @@ app.use((req, res, next) => {
 // Health check
 app.get('/', (req, res) => res.json({ message: 'OK' }));
 
-// Config
+// Configuration
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/u/2/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec';
-const lineConfig = {
-  channelAccessToken: process.env.LINE_ACCESS_TOKEN,
-  channelSecret: process.env.LINE_CHANNEL_SECRET
-};
-const lineClient = new LineClient(lineConfig);
+const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
+const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN; // Set in env
 
-// Submit from frontend
+// Submit data from frontend
 app.post('/submit', async (req, res) => {
   try {
     const resp = await fetch(APPS_SCRIPT_URL, {
@@ -41,55 +38,99 @@ app.post('/submit', async (req, res) => {
     const json = await resp.json();
     res.status(resp.ok && json.result === 'success' ? 200 : 500).json(json);
   } catch (e) {
-    console.error(e);
+    console.error('Submit error:', e);
     res.status(500).json({ error: e.message });
   }
 });
 
 // LINE webhook
-app.post('/line-webhook', lineMiddleware(lineConfig), (req, res) => {
+app.post('/line-webhook', lineMiddleware({ channelAccessToken: LINE_ACCESS_TOKEN, channelSecret: process.env.LINE_CHANNEL_SECRET }), (req, res) => {
+  // Immediately reply HTTP 200 to LINE
   res.sendStatus(200);
-  const events = JSON.parse(req.body.toString()).events;
-  if (!events.length) return;
-  events.forEach(async event => {
+
+  // Parse events
+  const bodyString = req.body.toString('utf8');
+  let events;
+  try {
+    events = JSON.parse(bodyString).events;
+  } catch (e) {
+    console.error('JSON parse error:', e);
+    return;
+  }
+  if (!Array.isArray(events) || events.length === 0) return;
+
+  // Process each event in background
+  events.forEach(async (event) => {
     if (event.type === 'message' && event.message.type === 'text') {
-      const text = event.message.text;
       const userId = event.source.userId;
-      const messages = [
-        { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
-        {
-          type: 'flex', altText: 'แจ้งซ่อมสำเร็จ',
-          contents: {
-            type: 'bubble',
-            hero: { type: 'image', url: 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png', size: 'full', aspectRatio: '20:13', aspectMode: 'cover' },
-            body: { type: 'box', layout: 'vertical', contents: [
-              { type: 'text', text: 'แจ้งซ่อมสำเร็จ', weight: 'bold', size: 'xl' },
-              { type: 'text', text: `อุปกรณ์: ${text}`, size: 'sm', color: '#666' },
-              { type: 'text', text: 'สถานะ: รอซ่อม', size: 'sm', color: '#AAA' }
-            ] }
+      const userMessage = event.message.text;
+
+      // Prepare push payload
+      const pushBody = {
+        to: userId,
+        messages: [
+          { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
+          {
+            type: 'flex',
+            altText: 'แจ้งซ่อมสำเร็จ',
+            contents: {
+              type: 'bubble',
+              hero: {
+                type: 'image',
+                url: 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png',
+                size: 'full',
+                aspectRatio: '20:13',
+                aspectMode: 'cover'
+              },
+              body: {
+                type: 'box', layout: 'vertical', contents: [
+                  { type: 'text', text: 'แจ้งซ่อมสำเร็จ', weight: 'bold', size: 'xl' },
+                  { type: 'text', text: `อุปกรณ์: ${userMessage}`, size: 'sm', color: '#666', margin: 'md' },
+                  { type: 'text', text: 'สถานะ: รอซ่อม', size: 'sm', color: '#AAA', margin: 'sm' }
+                ]
+              }
+            }
           }
-        }
-      ];
+        ]
+      };
+
+      // Send push message via HTTP request
       try {
-        await lineClient.pushMessage(userId, messages);
+        const pushResp = await fetch(LINE_PUSH_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
+          },
+          body: JSON.stringify(pushBody)
+        });
+        const pushJson = await pushResp.json();
+        console.log('Push API response:', pushResp.status, pushJson);
+      } catch (err) {
+        console.error('Push message error:', err);
+      }
+
+      // Save to Google Sheet
+      try {
         await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, message: text, status: 'รอซ่อม', timestamp: new Date().toISOString() })
+          body: JSON.stringify({ userId, message: userMessage, status: 'รอซ่อม', timestamp: new Date().toISOString() })
         });
       } catch (err) {
-        console.error(err);
+        console.error('Sheet save error:', err);
       }
     }
   });
 });
 
-// Error handler
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error('Unhandled error:', err);
   if (req.path === '/line-webhook') return res.sendStatus(200);
   res.status(500).json({ error: 'Server error' });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Listening ${PORT}`));
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
