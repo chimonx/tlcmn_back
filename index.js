@@ -78,9 +78,9 @@ app.post(
         const userId = event.source.userId;
         const userMsg = event.message.text;
 
-        // Prepare push payload
-        const pushPayload = {
-          to: userId,
+                // Prepare reply payload
+        const replyPayload = {
+          replyToken: event.replyToken,
           messages: [
             { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
             {
@@ -109,20 +109,20 @@ app.post(
           ]
         };
 
-        // Send push message
+        // Send reply message
         try {
-          const pushResp = await fetch(LINE_PUSH_URL, {
+          const replyResp = await fetch('https://api.line.me/v2/bot/message/reply', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
             },
-            body: JSON.stringify(pushPayload)
+            body: JSON.stringify(replyPayload)
           });
-          const pushResJson = await pushResp.json();
-          console.log('Push API response:', pushResp.status, pushResJson);
+          const replyJson = await replyResp.json();
+          console.log('Reply API response:', replyResp.status, replyJson);
         } catch (err) {
-          console.error('Push API error:', err);
+          console.error('Reply API error:', err);
         }
 
         // Save to Google Sheet
