@@ -2,8 +2,15 @@ const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
 
-// Parse JSON for all incoming requests
-app.use(express.json());
+// Middleware: parse raw body for LINE, JSON for others
+app.use('/line-webhook', express.raw({ type: 'application/json' }));
+app.use((req, res, next) => {
+  if (req.path !== '/line-webhook') {
+    express.json()(req, res, next);
+  } else {
+    next();
+  }
+});
 
 // CORS Middleware for frontend
 app.use((req, res, next) => {
@@ -20,7 +27,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check
 app.get('/', (req, res) => res.json({ message: 'Server is running' }));
 
 // Configuration
@@ -55,24 +62,34 @@ app.post('/submit', async (req, res) => {
 });
 
 // === /line-webhook Route ===
-app.post('/line-webhook', async (req, res) => {
-  // Log incoming webhook
-  console.log('[LINE] /line-webhook received headers:', req.headers);
-  console.log('[LINE] /line-webhook body:', req.body);
+app.post('/line-webhook', (req, res) => {
+  // Log incoming webhook info
+  console.log('[LINE] Headers:', JSON.stringify(req.headers));
+  console.log('[LINE] Raw body buffer length:', req.body.length);
+  const raw = req.body.toString('utf8');
+  console.log('[LINE] Raw body string:', raw);
+  let body;
+  try {
+    body = JSON.parse(raw);
+    console.log('[LINE] Parsed body:', JSON.stringify(body));
+  } catch (err) {
+    console.error('[LINE] JSON parse error:', err);
+    return res.sendStatus(400);
+  }
 
   // Acknowledge webhook immediately
   res.sendStatus(200);
 
-  const body = req.body;
   const events = Array.isArray(body.events) ? body.events : [];
-  console.log(`[LINE] Parsed events count: ${events.length}`);
+  console.log(`[LINE] Events count: ${events.length}`);
 
-  for (const event of events) {
+  events.forEach(async event => {
+    console.log('[LINE] Event:', JSON.stringify(event));
     if (event.type === 'message' && event.message.type === 'text') {
       const userId = event.source.userId;
       const userMsg = event.message.text;
 
-      // Prepare push message payload
+      // Push message payload
       const payload = {
         to: userId,
         messages: [
@@ -80,9 +97,8 @@ app.post('/line-webhook', async (req, res) => {
           { type: 'text', text: `อุปกรณ์: ${userMsg}\nสถานะ: รอซ่อม` }
         ]
       };
+      console.log('[LINE] Push payload:', JSON.stringify(payload));
 
-      // Send push message
-      console.log('[LINE] Sending push message:', JSON.stringify(payload));
       try {
         const response = await fetch(LINE_PUSH_URL, {
           method: 'POST',
@@ -93,16 +109,12 @@ app.post('/line-webhook', async (req, res) => {
           body: JSON.stringify(payload)
         });
         const result = await response.json();
-        if (response.ok) {
-          console.log('[LINE] Push message succeeded');
-        } else {
-          console.error('[LINE] Push message failed:', result);
-        }
+        console.log('[LINE] Push API response:', response.status, JSON.stringify(result));
       } catch (err) {
         console.error('[LINE] Push API error:', err);
       }
 
-      // Save to Google Sheet via Apps Script
+      // Save to sheet
       try {
         const sheetResp = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
@@ -114,7 +126,7 @@ app.post('/line-webhook', async (req, res) => {
         console.error('[Sheet] save error:', err);
       }
     }
-  }
+  });
 });
 
 // Start server
