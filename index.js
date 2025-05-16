@@ -61,9 +61,7 @@ app.post(
     channelSecret: process.env.LINE_CHANNEL_SECRET
   }),
   (req, res) => {
-    // Respond 200 immediately
     res.sendStatus(200);
-    // Parse events
     let events;
     try {
       events = JSON.parse(req.body.toString('utf8')).events;
@@ -72,57 +70,33 @@ app.post(
     }
     if (!Array.isArray(events) || events.length === 0) return;
 
-    // Process each event asynchronously
     events.forEach(async (event) => {
       if (event.type === 'message' && event.message.type === 'text') {
         const userId = event.source.userId;
         const userMsg = event.message.text;
 
-                // Prepare reply payload
-        const replyPayload = {
-          replyToken: event.replyToken,
+        // Send push message (replace Flex with plain text)
+        const pushPayload = {
+          to: userId,
           messages: [
             { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
-            {
-              type: 'flex',
-              altText: 'แจ้งซ่อมสำเร็จ',
-              contents: {
-                type: 'bubble',
-                hero: {
-                  type: 'image',
-                  url: 'https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_4_car.png',
-                  size: 'full',
-                  aspectRatio: '20:13',
-                  aspectMode: 'cover'
-                },
-                body: {
-                  type: 'box',
-                  layout: 'vertical',
-                  contents: [
-                    { type: 'text', text: 'แจ้งซ่อมสำเร็จ', weight: 'bold', size: 'xl' },
-                    { type: 'text', text: `อุปกรณ์: ${userMsg}`, size: 'sm', color: '#666666', margin: 'md' },
-                    { type: 'text', text: 'สถานะ: รอซ่อม', size: 'sm', color: '#AAAAAA', margin: 'sm' }
-                  ]
-                }
-              }
-            }
+            { type: 'text', text: `อุปกรณ์: ${userMsg}\nสถานะ: รอซ่อม` }
           ]
         };
 
-        // Send reply message
         try {
-          const replyResp = await fetch('https://api.line.me/v2/bot/message/reply', {
+          const pushResp = await fetch(LINE_PUSH_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`
             },
-            body: JSON.stringify(replyPayload)
+            body: JSON.stringify(pushPayload)
           });
-          const replyJson = await replyResp.json();
-          console.log('Reply API response:', replyResp.status, replyJson);
+          const pushJson = await pushResp.json();
+          console.log('Push API response:', pushResp.status, pushJson);
         } catch (err) {
-          console.error('Reply API error:', err);
+          console.error('Push API error:', err);
         }
 
         // Save to Google Sheet
