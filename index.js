@@ -162,7 +162,7 @@ app.post('/submit', async (req, res) => {
       console.log('[/submit] LINE push response:', pushRes.status, pushResult);
 
       if (pushRes.ok) {
-        return res.status(200).json({ message: 'Data saved and push sent successfully' });
+        return res.status(200).json({ message: 'Data saved successfully', status: 'success' });
       } else {
         return res.status(pushRes.status).json({ error: 'Push failed', pushResult });
       }
