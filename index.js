@@ -142,11 +142,9 @@ app.post('/submit', async (req, res) => {
 
       const pushPayload = {
         to: userId,
-        messages: [
-          { type: 'text', text: 'คุณได้แจ้งซ่อมเรียบร้อยแล้ว' },
-          flexMessage
-        ]
-      };
+          messages: [flexMessage]
+};
+
 
       // ส่ง push message กลับไปที่ userId
       const pushRes = await fetch(LINE_PUSH_URL, {
