@@ -5,8 +5,7 @@ const app = express();
 // Parse JSON for all incoming requests
 app.use(express.json());
 
-// CORS Middleware for frontend
-app.use((req, res, next) => {
+// CORS Middleware for frontend\ napp.use((req, res, next) => {
   const allowedOrigin = 'https://venerable-concha-0f56d5.netlify.app';
   const origin = req.headers.origin;
   if (origin === allowedOrigin) {
@@ -56,11 +55,16 @@ app.post('/submit', async (req, res) => {
 
 // === /line-webhook Route ===
 app.post('/line-webhook', async (req, res) => {
+  // Log incoming webhook
+  console.log('[LINE] /line-webhook received headers:', req.headers);
+  console.log('[LINE] /line-webhook raw body:', req.body);
+
   // Acknowledge webhook immediately
   res.sendStatus(200);
 
   const body = req.body;
   const events = Array.isArray(body.events) ? body.events : [];
+  console.log(`[LINE] Parsed events count: ${events.length}`);
 
   for (const event of events) {
     if (event.type === 'message' && event.message.type === 'text') {
