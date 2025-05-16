@@ -5,6 +5,21 @@ const app = express();
 // Parse JSON for all incoming requests
 app.use(express.json());
 
+// CORS Middleware for frontend
+app.use((req, res, next) => {
+  const allowedOrigin = 'https://venerable-concha-0f56d5.netlify.app';
+  const origin = req.headers.origin;
+  if (origin === allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Health check endpoint
 app.get('/', (req, res) => res.json({ message: 'Server is running' }));
 
