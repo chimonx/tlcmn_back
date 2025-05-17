@@ -67,12 +67,12 @@ app.post('/submit', async (req, res) => {
       // เตรียม Flex Message ส่งกลับ
       const flexMessage = {
         type: 'flex',
-        altText: 'แจ้งซ่อมสำเร็จ',
+        altText: 'แจ้งซ่อม',
         contents: {
           type: 'bubble',
           hero: {
             type: 'image',
-            url: 'https://img5.pic.in.th/file/secure-sv1/480286578_1688105901825754_783775536245793454_n.jpg',
+            url: 'https://img5.pic.in.th/file/secure-sv1/S__20308020.png',
             size: 'full',
             aspectRatio: '20:13',
             aspectMode: 'cover'
@@ -81,7 +81,7 @@ app.post('/submit', async (req, res) => {
             type: 'box',
             layout: 'vertical',
             contents: [
-              { type: 'text', text: 'แจ้งซ่อมสำเร็จ', weight: 'bold', size: 'xl' },
+              { type: 'text', text: 'แจ้งซ่อม', weight: 'bold', size: 'xl' },
               {
                 type: 'box',
                 layout: 'vertical',
