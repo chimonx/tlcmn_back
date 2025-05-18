@@ -35,7 +35,7 @@ if (!LINE_ACCESS_TOKEN) {
 // === /submit Route ===
 app.post('/submit', async (req, res) => {
   console.log('[/submit] payload:', req.body);
-  const { userId, displayName, hotels, building, floor, department, problem } = req.body;
+  const { userId, displayName, hotel, building, floor, department, problem } = req.body;
 
   if (!userId || !problem) {
     return res.status(400).json({ error: 'Missing userId or problem' });
@@ -44,7 +44,7 @@ app.post('/submit', async (req, res) => {
   const sheetData = {
     userId,
     displayName,
-    hotels,
+    hotel,
     building,
     floor,
     department,
@@ -95,7 +95,7 @@ app.post('/submit', async (req, res) => {
                     spacing: 'sm',
                     contents: [
                       { type: 'text', text: 'โรงแรม', color: '#aaaaaa', size: 'sm', flex: 2 },
-                      { type: 'text', text: hotels || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                      { type: 'text', text: hotel || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
                     ]
                   },
                   {
