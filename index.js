@@ -44,6 +44,7 @@ app.post('/submit', async (req, res) => {
   const sheetData = {
     userId,
     displayName,
+    hotels,
     building,
     floor,
     department,
