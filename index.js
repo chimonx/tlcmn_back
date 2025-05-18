@@ -35,7 +35,7 @@ if (!LINE_ACCESS_TOKEN) {
 // === /submit Route ===
 app.post('/submit', async (req, res) => {
   console.log('[/submit] payload:', req.body);
-  const { userId, displayName, building, floor, department, problem } = req.body;
+  const { userId, displayName, hotels, building, floor, department, problem } = req.body;
 
   if (!userId || !problem) {
     return res.status(400).json({ error: 'Missing userId or problem' });
@@ -94,6 +94,15 @@ app.post('/submit', async (req, res) => {
                     layout: 'baseline',
                     spacing: 'sm',
                     contents: [
+                      { type: 'text', text: 'โรงแรม', color: '#aaaaaa', size: 'sm', flex: 2 },
+                      { type: 'text', text: hotels || '-', wrap: true, color: '#666666', size: 'sm', flex: 5 }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'baseline',
+                    spacing: 'sm',
+                    contents: [
                       { type: 'text', text: 'ปัญหา', color: '#aaaaaa', size: 'sm', flex: 2 },
                       { type: 'text', text: problem, wrap: true, color: '#666666', size: 'sm', flex: 5 }
                     ]
@@ -143,9 +152,8 @@ app.post('/submit', async (req, res) => {
 
       const pushPayload = {
         to: userId,
-          messages: [flexMessage]
-};
-
+        messages: [flexMessage]
+      };
 
       // ส่ง push message กลับไปที่ userId
       const pushRes = await fetch(LINE_PUSH_URL, {
