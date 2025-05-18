@@ -25,7 +25,7 @@ app.get('/', (req, res) => res.json({ message: 'Server is running' }));
 
 // Configuration
 const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjgzSUqhlVun7gNVzCFdlnTe4LmkVkO8AYj96I7-H2CqMZWbMMCIyMd8TbnW75UA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwVqr-ITN5o0ftTE1bBd1U-CaucQoNrQL-NHCrkhypDQRz2IK5S9KwSWWJDgNja2w/exec';
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 if (!LINE_ACCESS_TOKEN) {
   console.error('Error: Missing LINE_ACCESS_TOKEN');
